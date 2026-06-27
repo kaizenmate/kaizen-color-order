@@ -284,13 +284,13 @@
     </div>
     <div class="doc-meta">
       <label>Order Number</label>
-      <input class="field-inline" type="text" placeholder="KM-SO-______">
+      <input class="field-inline" type="text" id="f-order-num" placeholder="KM-SO-______">
       <br><br>
       <label>Order Date</label>
-      <input class="field-inline" type="date">
+      <input class="field-inline" type="date" id="f-order-date">
       <br><br>
       <label>Requested Ship Date</label>
-      <input class="field-inline" type="date">
+      <input class="field-inline" type="date" id="f-ship-date">
     </div>
   </div>
 
@@ -319,23 +319,23 @@
     <div class="grid-3" style="margin-bottom:12px;">
       <div class="field span-2">
         <label>Project / Job Name</label>
-        <input type="text" placeholder="e.g. CCJHS Renovations 2026">
+        <input type="text" id="f-job-name" placeholder="e.g. CCJHS Renovations 2026">
       </div>
       <div class="field">
         <label>Job Number (JobTread)</label>
-        <input type="text" placeholder="26-10XXX">
+        <input type="text" id="f-job-num" placeholder="26-10XXX">
       </div>
       <div class="field span-2">
         <label>End Client / Owner</label>
-        <input type="text" placeholder="">
+        <input type="text" id="f-client" placeholder="">
       </div>
       <div class="field">
         <label>GC / Contractor</label>
-        <input type="text" placeholder="Kaizen Mate LLC">
+        <input type="text" id="f-gc" placeholder="Kaizen Mate LLC">
       </div>
       <div class="field">
         <label>Sales Rep / PM</label>
-        <input type="text" placeholder="">
+        <input type="text" id="f-pm" placeholder="">
       </div>
       <div class="field">
         <label>Project State</label>
@@ -842,20 +842,20 @@
         <div class="sig-line"></div>
         <div class="sig-label">Customer / Owner Representative — Signature</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-          <div class="field"><label>Printed Name</label><input type="text"></div>
+          <div class="field"><label>Printed Name</label><input type="text" id="f-customer-name"></div>
           <div class="field"><label>Title</label><input type="text"></div>
           <div class="field"><label>Date</label><input type="date"></div>
-          <div class="field"><label>Email</label><input type="email"></div>
+          <div class="field"><label>Email <span style="color:var(--km-orange)">*</span></label><input type="email" id="f-customer-email" placeholder="customer@example.com"></div>
         </div>
       </div>
       <div>
         <div class="sig-line"></div>
         <div class="sig-label">Kaizen Mate LLC — Authorized Representative</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-          <div class="field"><label>Printed Name</label><input type="text" value=""></div>
+          <div class="field"><label>Printed Name</label><input type="text" id="f-km-name" value=""></div>
           <div class="field"><label>Title</label><input type="text" placeholder="Principal / PM"></div>
           <div class="field"><label>Date</label><input type="date"></div>
-          <div class="field"><label>Email</label><input type="email" placeholder="cb@kaizenmate.com"></div>
+          <div class="field"><label>Email</label><input type="email" id="f-km-email" placeholder="cb@kaizenmate.com"></div>
         </div>
       </div>
     </div>
@@ -865,10 +865,248 @@
   <div style="background:var(--km-black);color:rgba(255,255,255,.35);padding:12px 36px;display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:.06em;text-transform:uppercase;">
     <span style="color:var(--km-orange);font-weight:700;letter-spacing:.1em;">KAIZEN MATE LLC</span>
     <span>PO Box 362, Granbury, TX 76048 &nbsp;|&nbsp; (817) 382-7454 &nbsp;|&nbsp; kaizenmate.com</span>
-    <span class="no-print" style="cursor:pointer;color:var(--km-orange);font-weight:700;" onclick="window.print()">⎙ Print / Save PDF</span>
+    <div class="no-print" style="display:flex;align-items:center;gap:12px;">
+      <button onclick="submitOrder()"
+        style="background:var(--km-orange);border:none;color:#fff;padding:9px 22px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:inherit;"
+        onmouseover="this.style.background='#E06A20'" onmouseout="this.style.background='var(--km-orange)'">
+        Submit Order ↗
+      </button>
+      <span style="cursor:pointer;color:var(--km-orange);font-weight:700;" onclick="window.print()">⎙ Print / PDF</span>
+    </div>
   </div>
 
 </div>
+
+
+<!-- ═══════════════════════════════════════════════
+     KAIZEN MATE — ONLINE SUBMISSION ENGINE
+     Apps Script URL hardcoded — ready to go
+═══════════════════════════════════════════════ -->
+<div id="km-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+  <div id="km-modal-inner" style="background:#fff;border-radius:12px;padding:28px;max-width:640px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);"></div>
+</div>
+
+<style>
+@keyframes km-spin { to { transform:rotate(360deg); } }
+</style>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyS0_jHA_VKmb1hJGm_MsCRAbiV2FR-kGeAQ6f8n5nR118rSunOMjEwZ48UuVKrdg9_Fw/exec';
+
+// ── COLLECT SPEC FROM DOM ──
+function collectSpec() {
+  const g  = id => (document.getElementById(id)||{}).value || '';
+
+  // Scrape color table rows
+  const colors = {};
+  document.querySelectorAll('.color-table tbody tr').forEach(tr => {
+    const nameEl = tr.querySelector('.item-name');
+    if (!nameEl) return;
+    const name = nameEl.textContent.trim();
+    const fixed = tr.querySelector('.fixed-color');
+    if (fixed) { colors[name] = fixed.textContent.trim().replace(/\s+/g,' '); return; }
+    const checked = tr.querySelector('input[type=radio]:checked');
+    if (checked) {
+      const lbl = tr.querySelector('label[for="'+checked.id+'"]');
+      colors[name] = lbl ? lbl.textContent.trim() : '—';
+    } else {
+      const custom = tr.querySelector('td:last-child input[type=text]');
+      colors[name] = (custom && custom.value) ? 'Custom: '+custom.value : '—';
+    }
+  });
+
+  // Features
+  const features = [];
+  document.querySelectorAll('.check-grid input[type=checkbox]:checked').forEach(cb => {
+    const lbl = cb.closest('label');
+    if (lbl) features.push(lbl.textContent.trim());
+  });
+
+  // Notes textareas
+  const notes = [];
+  document.querySelectorAll('.section textarea').forEach(ta => {
+    if (!ta.value) return;
+    const lbl = ta.closest('.field')?.querySelector('label');
+    notes.push((lbl ? lbl.textContent.trim()+': ' : '') + ta.value);
+  });
+
+  const orderNum  = g('f-order-num');
+  const orderDate = g('f-order-date');
+  const shipDate  = g('f-ship-date');
+  const jobName   = g('f-job-name');
+  const jobNum    = g('f-job-num');
+  const client    = g('f-client');
+  const gc        = g('f-gc') || 'Kaizen Mate LLC';
+  const pm        = g('f-pm');
+  const custName  = g('f-customer-name');
+  const custEmail = g('f-customer-email');
+
+  const D = '─'.repeat(54);
+  let colorBlock = '';
+  for (const [k,v] of Object.entries(colors)) colorBlock += '  ' + k.padEnd(28) + v + '\n';
+
+  const spec =
+`KAIZEN MATE LLC — MODULAR BUILDING COLOR SPECIFICATION
+Factory Manufacturing Order
+${D}
+
+ORDER INFORMATION
+  Order Number:      ${orderNum || '—'}
+  Order Date:        ${orderDate || new Date().toLocaleDateString()}
+  Requested Ship:    ${shipDate || '—'}
+
+PROJECT INFORMATION
+  Job Name:          ${jobName || '—'}
+  Job Number:        ${jobNum || '—'}
+  End Client:        ${client || '—'}
+  GC / Contractor:   ${gc}
+  PM / Sales Rep:    ${pm || '—'}
+  Customer Name:     ${custName || '—'}
+  Customer Email:    ${custEmail || '—'}
+
+COLOR SELECTIONS
+${colorBlock}
+INCLUDED FEATURES
+  ${features.length ? features.join('\n  ') : 'None selected'}
+
+NOTES
+  ${notes.length ? notes.join('\n  ') : '—'}
+
+${D}
+Kaizen Mate LLC | PO Box 362, Granbury TX 76048
+(817) 382-7454 | kaizenmate.com | sales@kaizenmate.com
+Submitted: ${new Date().toLocaleString('en-US',{timeZone:'America/Chicago'})}`;
+
+  return { spec, jobName, jobNum, client, custName, custEmail, orderNum, orderDate };
+}
+
+// ── AI CONFIRMATION EMAIL ──
+async function generateSummary(spec) {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        system: 'You are a professional order confirmation writer for Kaizen Mate LLC, a Texas-based modular construction company (kaizenmate.com, (817) 382-7454). Write a concise, warm, professional confirmation email body — no subject line, start directly with the body. Reference the job name and key color selections. End with next steps and Kaizen Mate contact info. Under 220 words.',
+        messages: [{ role:'user', content:'Write a confirmation email for this order:\n\n'+spec }]
+      })
+    });
+    const d = await res.json();
+    return d.content?.[0]?.text || '';
+  } catch(e) { return ''; }
+}
+
+// ── SEND TO APPS SCRIPT ──
+async function sendToAppsScript(payload) {
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+      mode: 'no-cors'
+    });
+    return true;
+  } catch(e) { return false; }
+}
+
+// ── MODAL HELPERS ──
+function showModal(html) {
+  document.getElementById('km-modal-inner').innerHTML = html;
+  document.getElementById('km-modal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('km-modal').style.display = 'none';
+}
+
+// ── MAIN SUBMIT ──
+async function submitOrder() {
+  // Validate required fields
+  const jobName = document.getElementById('f-job-name')?.value;
+  const client  = document.getElementById('f-client')?.value;
+  const custEmail = document.getElementById('f-customer-email')?.value;
+
+  if (!jobName) {
+    alert('Please enter a Project / Job Name before submitting.');
+    document.getElementById('f-job-name')?.focus(); return;
+  }
+  if (!client) {
+    alert('Please enter the End Client / Owner before submitting.');
+    document.getElementById('f-client')?.focus(); return;
+  }
+
+  // Loading state
+  showModal(`
+    <div style="text-align:center;padding:24px 0">
+      <div style="font-size:40px;display:inline-block;animation:km-spin 1s linear infinite">⚙️</div>
+      <div style="font-size:16px;font-weight:700;color:#111;margin:12px 0 6px">Submitting order…</div>
+      <div style="font-size:12px;color:#888">Generating AI confirmation and sending emails</div>
+    </div>`);
+
+  const { spec, jobName:jn, jobNum, client:cl, custName, custEmail:ce, orderNum, orderDate } = collectSpec();
+
+  // Step 1 — AI summary
+  const summary = await generateSummary(spec);
+
+  // Step 2 — Send to Apps Script (emails + Drive)
+  const ok = await sendToAppsScript({
+    spec, summary,
+    jobName: jn, jobNumber: jobNum,
+    client: cl, customerEmail: ce,
+    orderDate: orderDate || new Date().toLocaleDateString()
+  });
+
+  // Step 3 — Show result
+  const escapedSpec = spec.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapedSum  = summary ? summary.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+
+  showModal(`
+    <div style="max-width:600px;width:100%">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div style="font-size:32px">✅</div>
+        <div>
+          <div style="font-size:17px;font-weight:700;color:#111">Order Submitted</div>
+          <div style="font-size:12px;color:#888">${jn || 'New Order'} — ${cl || ''}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;font-size:12px;background:#EAF3DE;border-radius:6px;padding:10px 12px;">
+        <span style="font-weight:700;color:#3B6D11">✓</span>
+        <span style="color:#3B6D11;line-height:1.6">
+          Confirmation sent to <strong>sales@kaizenmate.com</strong>${ce ? ' and <strong>'+ce+'</strong>' : ''} · Google Doc saved to Drive
+        </span>
+      </div>
+
+      ${summary ? `
+      <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:7px">AI Confirmation Email</div>
+      <div style="background:#FFF3EB;border:1px solid #FDD5B5;border-radius:7px;padding:14px;font-size:12px;line-height:1.8;color:#1a1a1a;max-height:180px;overflow-y:auto;margin-bottom:14px;white-space:pre-wrap">${escapedSum}</div>
+      ` : ''}
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:7px">Full Specification</div>
+      <pre id="km-spec-out" style="background:#f6f6f6;border:0.5px solid #e2e2e2;border-radius:7px;padding:14px;font-size:11px;line-height:1.7;color:#333;max-height:200px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;margin-bottom:14px">${escapedSpec}</pre>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button onclick="navigator.clipboard?.writeText(document.getElementById('km-spec-out').textContent)"
+          style="padding:8px 16px;border:1.5px solid #e2e2e2;border-radius:6px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+          Copy Spec
+        </button>
+        ${summary ? `<button onclick="navigator.clipboard?.writeText('${summary.replace(/'/g,"\'").replace(/\n/g,'\\n')}')"
+          style="padding:8px 16px;border:1.5px solid #e2e2e2;border-radius:6px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+          Copy Email
+        </button>` : ''}
+        <button onclick="closeModal();setTimeout(()=>window.print(),200)"
+          style="padding:8px 16px;background:#FE883E;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+          ⎙ Print / PDF
+        </button>
+        <button onclick="closeModal()"
+          style="padding:8px 16px;border:1.5px solid #e2e2e2;border-radius:6px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-left:auto">
+          Close
+        </button>
+      </div>
+    </div>`);
+}
+</script>
 
 </body>
 </html>
